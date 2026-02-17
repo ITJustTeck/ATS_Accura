@@ -164,7 +164,7 @@
   <div class="logo">ACCURA</div>
   <div>
     <span class="version">Industrial Logistics</span>
-    <span class="version" style="margin-left:8px">v5.5.0</span>
+    <span class="version" style="margin-left:8px">v5.6.0</span>
   </div>
 </header>
 
@@ -371,7 +371,7 @@ function loadScript(src) {
 }
 
 // ── Photo compression ───────────────────────────────────────────────
-function compressPhoto(file, maxWidth = 1200, quality = 0.6) {
+function compressPhoto(file, maxWidth = 800, quality = 0.35) {
   return new Promise((resolve) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
