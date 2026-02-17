@@ -128,16 +128,38 @@ function openDashboard(){ fetch(API_URL+"?dashboard=1").then(r=>r.json()).then(s
 function openMap(){ fetch(API_URL+"?map=1").then(r=>r.json()).then(showMap); }
 
 function startScanner(){
+
   const scanner = new Html5Qrcode("reader");
-  scanner.start({facingMode:"environment"}, {fps:10, qrbox:250},
-  (code)=>{
-    scanner.stop();
-    state.scanned = code;
-    autoParse(code);
-    state.page="review";
-    render();
-  });
+  let scannedOnce = false;
+
+  scanner.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: 250 },
+    (code) => {
+
+      if(scannedOnce) return;
+      scannedOnce = true;
+
+      console.log("Scanned:", code);
+
+      state.scanned = code.trim();
+      autoParse(state.scanned);
+
+      scanner.stop().then(() => {
+        state.page = "review";
+        render();
+      }).catch(err => {
+        console.error("Stop error:", err);
+        state.page = "review";
+        render();
+      });
+    },
+    (errorMessage) => {
+      // silent scan errors
+    }
+  );
 }
+
 
 function autoParse(code){
   let level = code.match(/L\d/i);
