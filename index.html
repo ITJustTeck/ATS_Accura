@@ -147,8 +147,8 @@ function startScanner(){
 
   activeScanner = new Html5Qrcode("reader");
 
-  activeScanner.start(
-    { facingMode: { ideal: "environment" } },
+activeScanner.start(
+  { facingMode: "environment" },
     {
       fps: 25,
       qrbox: { width: 320, height: 120 },
@@ -181,17 +181,19 @@ function startScanner(){
 }
 
 function stopScanner(){
+
   if(scanTimeout){
     clearTimeout(scanTimeout);
     scanTimeout = null;
   }
 
   if(activeScanner){
-    activeScanner.stop().catch(()=>{});
-    activeScanner.clear().catch(()=>{});
+    try { activeScanner.stop(); } catch(e) {}
+    try { activeScanner.clear(); } catch(e) {}
     activeScanner = null;
   }
 }
+
 
 function autoParse(code){
   let level = code.match(/L\d/i);
