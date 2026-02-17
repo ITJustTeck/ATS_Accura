@@ -24,13 +24,17 @@ body { background:#0b0b0b; }
 
 <div class="p-4 border-b border-gray-800 flex items-center gap-4">
   <div class="text-2xl font-semibold tracking-widest text-red-600">ACCURA</div>
-  <div class="text-sm text-gray-500">Industrial Logistics Control</div>
+  <div class="text-sm text-gray-500">
+    Industrial Logistics Control 
+    <span class="text-gray-600 ml-2">v4.0.0</span>
+  </div>
 </div>
 
 <div id="app" class="p-6 max-w-xl mx-auto"></div>
 
 <script>
-
+const APP_VERSION = "v4.0.0";
+console.log("ACCURA Industrial Logistics", APP_VERSION);
 const API_URL = "https://script.google.com/macros/s/AKfycbzxr7VATNJul8uPEeTaVKA28F8yySjZ_7EA-IkpG7evcq2ZkpuFOXFugB1xSBjuk1gH/exec";
 let state = { page:"home", scanned:"", plannedLevel:"", plannedZone:"", gps:null };
 
@@ -301,6 +305,15 @@ function showMap(data){
   `;
 }
 
+</script>
+  <script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(registrations => {
+    for (let registration of registrations) {
+      registration.unregister();
+    }
+  });
+}
 </script>
 </body>
 </html>
