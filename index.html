@@ -164,7 +164,7 @@
   <div class="logo">ACCURA</div>
   <div>
     <span class="version">Industrial Logistics</span>
-    <span class="version" style="margin-left:8px">v8.0.0</span>
+    <span class="version" style="margin-left:8px">v8.1.0</span>
   </div>
 </header>
 
@@ -172,7 +172,7 @@
 
 <script>
 // ── Config ──────────────────────────────────────────────────────────
-const API_URL = "https://script.google.com/macros/s/AKfycbyuWtnavKSfGd8wSIsZZLNeRcAVPKVoxdXms1kQ5QqnTTg-35r_9z4Gwq8P_r-0npMz/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbzxr7VATNJul8uPEeTaVKA28F8yySjZ_7EA-IkpG7evcq2ZkpuFOXFugB1xSBjuk1gH/exec";
 
 // ── State ───────────────────────────────────────────────────────────
 const state = {
@@ -468,18 +468,28 @@ async function submitData() {
       const photoBase64 = await compressPhoto(state.photoFile);
       dbg("Compressed to " + Math.round(photoBase64.length/1024) + "KB base64");
 
-      const photoPayload = JSON.stringify({
+      // Use same pattern as scan data (which works) — just JSON via no-cors
+      const body = JSON.stringify({
         photoUpload: true,
         barcode: barcode,
         photo: photoBase64,
       });
+      dbg("Photo payload: " + Math.round(body.length/1024) + "KB. Sending...");
 
-      dbg("Sending photo via form POST (" + Math.round(photoPayload.length/1024) + "KB payload)...");
-      await postViaForm(API_URL, photoPayload);
-      dbg("Photo form POST completed");
+      // Small delay to let scan data POST finish first
+      await new Promise(r => setTimeout(r, 2000));
+
+      const resp = await fetch(API_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: body,
+        redirect: "follow",
+      });
+      dbg("Photo fetch completed, status type: " + resp.type);
       toast("Photo uploaded ✓", "success");
     } catch (e) {
-      dbg("Photo POST error: " + e.message);
+      dbg("Photo fetch error: " + e.message);
       toast("Scan saved, photo failed", "error");
     }
   } else {
