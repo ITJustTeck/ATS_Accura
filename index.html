@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link href="https://unpkg.com/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 <script src="https://unpkg.com/html5-qrcode"></script>
-<title>Accura Industrial Scanner</title>
+<title>Accura Industrial Logistics</title>
 <link rel="icon" href="data:,">
 <style>
 body { background:#0b0b0b; }
@@ -14,9 +14,12 @@ body { background:#0b0b0b; }
   backdrop-filter: blur(8px);
   border:1px solid rgba(255,255,255,0.08);
 }
+.glow-red {
+  box-shadow: 0 0 20px rgba(255,0,0,0.6);
+  border:1px solid rgba(255,0,0,0.8);
+}
 </style>
 </head>
-
 <body class="text-gray-200 font-sans">
 
 <div class="p-4 border-b border-gray-800 flex items-center gap-4">
@@ -27,9 +30,9 @@ body { background:#0b0b0b; }
 <div id="app" class="p-6 max-w-xl mx-auto"></div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbz0dXTy1kL-4GMKyMXDtX1d75x6TZxMCD9k-TAPzszqHvAXnq0ripWRWEIXlWBgC-_p/exec";
 
-let state = { page:"home", scanned:"", plannedLevel:"", plannedZone:"" };
+const API_URL = "https://script.google.com/macros/s/AKfycbzxr7VATNJul8uPEeTaVKA28F8yySjZ_7EA-IkpG7evcq2ZkpuFOXFugB1xSBjuk1gH/exec";
+let state = { page:"home", scanned:"", plannedLevel:"", plannedZone:"", gps:null };
 
 function render(){
   const app = document.getElementById("app");
@@ -37,18 +40,28 @@ function render(){
   if(state.page==="home"){
     app.innerHTML = `
     <div class="space-y-6">
-      <button onclick="openScanner()" class="w-full bg-red-600 hover:bg-red-700 p-6 rounded-2xl text-xl tracking-wide shadow-xl">
+
+      <button onclick="openScanner()" class="w-full bg-red-600 p-6 rounded-2xl text-xl shadow-xl">
         SCAN CRATE
       </button>
 
       <div class="glass p-6 rounded-2xl">
-        <div class="mb-3 text-lg">SEARCH CRATE</div>
-        <input id="searchInput" placeholder="Enter Crate ID"
-        class="w-full p-3 bg-black border border-gray-700 rounded text-gray-300">
-        <button onclick="searchCrate()" class="mt-4 w-full bg-gray-800 hover:bg-gray-700 p-3 rounded-xl">
-        SEARCH
+        <div class="mb-3 text-lg">MANUAL ENTRY</div>
+        <input id="manualBarcode" placeholder="Enter Crate ID"
+          class="w-full p-3 bg-black border border-gray-700 rounded text-gray-300">
+        <button onclick="useManualEntry()" class="mt-4 w-full bg-gray-800 p-3 rounded-xl">
+          CONTINUE
         </button>
       </div>
+
+      <button onclick="openDashboard()" class="w-full bg-gray-800 p-4 rounded-xl">
+        VIEW DASHBOARD
+      </button>
+
+      <button onclick="openMap()" class="w-full bg-gray-800 p-4 rounded-xl">
+        VIEW MAP
+      </button>
+
     </div>`;
   }
 
@@ -59,8 +72,9 @@ function render(){
   }
 
   if(state.page==="review"){
+    const override = state.plannedLevel && state.plannedLevel !== state.selectedLevel;
     app.innerHTML = `
-    <div class="glass p-6 rounded-2xl space-y-4">
+    <div class="glass p-6 rounded-2xl space-y-4 ${override ? "glow-red" : ""}">
       <div class="text-red-500 text-xl">${state.scanned}</div>
 
       <label>Level</label>
@@ -82,24 +96,36 @@ function render(){
         <option>Installed</option>
       </select>
 
-      <button onclick="submitData()" class="w-full bg-red-600 p-4 rounded-xl text-lg">SUBMIT</button>
-      <button onclick="goHome()" class="w-full bg-gray-800 p-3 rounded">BACK</button>
+      <button onclick="captureGPS()" class="w-full bg-gray-800 p-3 rounded-xl">
+        Capture GPS
+      </button>
+
+      <input type="file" accept="image/*" capture="environment" id="photoInput"
+        class="w-full bg-black border border-gray-700 p-2 rounded">
+
+      <button onclick="submitData()" class="w-full bg-red-600 p-4 rounded-xl text-lg">
+        SUBMIT
+      </button>
+
+      <button onclick="goHome()" class="w-full bg-gray-800 p-3 rounded">
+        BACK
+      </button>
     </div>`;
 
     setTimeout(()=>{
-      if(state.plannedLevel) level.value = state.plannedLevel;
-      if(state.plannedZone) zone.value = state.plannedZone;
+      if(state.plannedLevel) document.getElementById("level").value = state.plannedLevel;
+      if(state.plannedZone) document.getElementById("zone").value = state.plannedZone;
     },100);
   }
 
-  if(state.page==="searching"){
-    app.innerHTML = `<div class="text-center p-10 animate-pulse">Searching...</div>`;
-  }
 }
+
 render();
 
-function openScanner(){ state.page="scan"; render(); }
 function goHome(){ state.page="home"; render(); }
+function openScanner(){ state.page="scan"; render(); }
+function openDashboard(){ fetch(API_URL+"?dashboard=1").then(r=>r.json()).then(showDashboard); }
+function openMap(){ fetch(API_URL+"?map=1").then(r=>r.json()).then(showMap); }
 
 function startScanner(){
   const scanner = new Html5Qrcode("reader");
@@ -108,7 +134,6 @@ function startScanner(){
     scanner.stop();
     state.scanned = code;
     autoParse(code);
-    navigator.vibrate?.(200);
     state.page="review";
     render();
   });
@@ -121,79 +146,115 @@ function autoParse(code){
   state.plannedZone = zone ? zone[0].toUpperCase():"";
 }
 
+function useManualEntry(){
+  let val = document.getElementById("manualBarcode").value;
+  if(!val) return;
+  state.scanned = val;
+  autoParse(val);
+  state.page="review";
+  render();
+}
+
+function captureGPS(){
+  navigator.geolocation.getCurrentPosition(pos=>{
+    state.gps = pos.coords.latitude + "," + pos.coords.longitude;
+    alert("GPS Captured ✔");
+  },()=> alert("GPS unavailable"));
+}
+
 async function submitData(){
 
-  let payload = {
-    barcode: state.scanned,
-    plannedLevel: state.plannedLevel,
-    actualLevel: level.value,
-    levelOverride: state.plannedLevel !== level.value,
-    plannedZone: state.plannedZone,
-    actualZone: zone.value,
-    zoneOverride: state.plannedZone !== zone.value,
-    status: status.value,
-    device: navigator.userAgent
-  };
+  let photoBase64 = "";
+  const file = document.getElementById("photoInput").files[0];
 
-  try {
-
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8"
-      },
-      body: JSON.stringify(payload)
-    });
-
-    // Read response to prevent silent failure behavior
-    const text = await res.text();
-    console.log("Server response:", text);
-
-    if (!res.ok) {
-      alert("Upload failed (Server error " + res.status + ")");
-      return;
-    }
-
-    alert("Uploaded ✔");
-
-  } catch (err) {
-    console.error(err);
-    alert("Upload Failed (Network issue)");
+  if(file){
+    photoBase64 = await toBase64(file);
   }
 
+  fetch(API_URL,{
+    method:"POST",
+    headers:{ "Content-Type":"text/plain;charset=utf-8"},
+    body: JSON.stringify({
+      barcode: state.scanned,
+      plannedLevel: state.plannedLevel,
+      actualLevel: level.value,
+      levelOverride: state.plannedLevel !== level.value,
+      plannedZone: state.plannedZone,
+      actualZone: zone.value,
+      zoneOverride: state.plannedZone !== zone.value,
+      status: status.value,
+      gps: state.gps,
+      photo: photoBase64,
+      device: navigator.userAgent
+    })
+  });
+
+  alert("Uploaded ✔");
   goHome();
 }
 
-
-async function searchCrate(){
-  let id = document.getElementById("searchInput").value;
-  if(!id) return;
-  state.page="searching"; render();
-
-  try{
-    let res = await fetch(API_URL + "?barcode=" + encodeURIComponent(id));
-    let data = await res.json();
-
-    if(!data.found){
-      alert("No record found.");
-      goHome(); return;
-    }
-
-    document.getElementById("app").innerHTML = `
-    <div class="glass p-6 rounded-2xl space-y-4">
-      <div class="text-red-500 text-xl">${id}</div>
-      <div><strong>Last Scan:</strong> ${new Date(data.timestamp).toLocaleString()}</div>
-      <div><strong>Level:</strong> ${data.level}</div>
-      <div><strong>Zone:</strong> ${data.zone}</div>
-      <div><strong>Status:</strong> ${data.status}</div>
-      <button onclick="goHome()" class="w-full bg-gray-800 p-3 rounded mt-4">DONE</button>
-    </div>`;
-
-  }catch{
-    alert("Search unavailable.");
-    goHome();
-  }
+function toBase64(file){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload=()=>resolve(reader.result);
+    reader.onerror=error=>reject(error);
+  });
 }
+
+function showDashboard(data){
+  document.getElementById("app").innerHTML = `
+  <div class="glass p-6 rounded-2xl space-y-4">
+    <div>Total Crates: ${data.total}</div>
+    <div>Misplaced: ${data.misplaced}</div>
+    <div>Installed: ${data.installed}</div>
+    <button onclick="goHome()" class="w-full bg-gray-800 p-3 rounded">BACK</button>
+  </div>`;
+}
+
+function showMap(data){
+
+  let rows = data.map(item => {
+    if(!item.gps) return "";
+    const safeBarcode = (item.barcode || "").replace(/</g,"&lt;");
+    const coords = item.gps;
+
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const mapsUrl = isIOS
+      ? `https://maps.apple.com/?q=${encodeURIComponent(coords)}`
+      : `https://www.google.com/maps?q=${encodeURIComponent(coords)}`;
+
+    return `
+      <div class="glass p-4 rounded-xl flex items-center justify-between gap-3">
+        <div class="text-sm text-gray-300">
+          <div class="text-red-500 font-semibold">${safeBarcode}</div>
+          <div class="text-gray-400">${coords}</div>
+        </div>
+        <a href="${mapsUrl}" target="_blank" rel="noopener"
+           class="bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg text-sm">
+          VIEW IN MAPS
+        </a>
+      </div>
+    `;
+  }).join("");
+
+  if(!rows.trim()){
+    rows = `<div class="text-gray-400">No GPS pins logged yet.</div>`;
+  }
+
+  document.getElementById("app").innerHTML = `
+    <div class="space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="text-lg">MAP PINS</div>
+        <button onclick="goHome()" class="bg-gray-800 px-4 py-2 rounded-lg text-sm">BACK</button>
+      </div>
+      <div class="space-y-3">
+        ${rows}
+      </div>
+    </div>
+  `;
+}
+
 </script>
 </body>
 </html>
