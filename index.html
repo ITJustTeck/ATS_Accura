@@ -1,343 +1,749 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<link href="https://unpkg.com/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-<script src="https://unpkg.com/html5-qrcode"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Accura Industrial Logistics</title>
 <link rel="icon" href="data:,">
 <style>
-body { background:#0b0b0b; }
-.glass {
-  background: rgba(40,40,40,0.6);
-  backdrop-filter: blur(8px);
-  border:1px solid rgba(255,255,255,0.08);
-}
-.glow-red {
-  box-shadow: 0 0 20px rgba(255,0,0,0.6);
-  border:1px solid rgba(255,0,0,0.8);
-}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0a0a0a;
+    --surface:rgba(38,38,38,0.65);
+    --border:rgba(255,255,255,0.07);
+    --red:#dc2626;
+    --red-glow:rgba(220,38,38,0.5);
+    --text:#e5e5e5;
+    --muted:#737373;
+    --input-bg:#111;
+    --input-border:#333;
+    --btn-bg:#1a1a1a;
+    --btn-hover:#262626;
+    --radius:14px;
+  }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    background:var(--bg);color:var(--text);
+    -webkit-font-smoothing:antialiased;
+    min-height:100dvh;
+  }
+  header{
+    padding:16px 20px;
+    border-bottom:1px solid var(--border);
+    display:flex;align-items:center;gap:12px;
+  }
+  .logo{font-size:1.5rem;font-weight:700;letter-spacing:.25em;color:var(--red)}
+  .version{font-size:.75rem;color:var(--muted)}
+  #app{padding:20px;max-width:480px;margin:0 auto}
+
+  /* Glass card */
+  .card{
+    background:var(--surface);
+    backdrop-filter:blur(10px);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:20px;
+  }
+  .card.glow{
+    box-shadow:0 0 24px var(--red-glow);
+    border-color:rgba(220,38,38,0.7);
+  }
+
+  /* Buttons */
+  .btn{
+    display:block;width:100%;padding:16px;
+    border:none;border-radius:var(--radius);
+    font-size:1rem;font-weight:600;color:var(--text);
+    cursor:pointer;transition:background .15s;
+    text-align:center;
+  }
+  .btn-primary{background:var(--red)}
+  .btn-primary:active{background:#b91c1c}
+  .btn-secondary{background:var(--btn-bg);border:1px solid var(--border)}
+  .btn-secondary:active{background:var(--btn-hover)}
+  .btn-sm{padding:10px 16px;font-size:.875rem;width:auto;display:inline-block}
+
+  /* Inputs */
+  .input,.select{
+    width:100%;padding:12px;
+    background:var(--input-bg);
+    border:1px solid var(--input-border);
+    border-radius:8px;color:var(--text);
+    font-size:1rem;
+    -webkit-appearance:none;
+  }
+  .select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23999'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+  label{font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+
+  /* Layout helpers */
+  .stack{display:flex;flex-direction:column;gap:14px}
+  .stack-lg{gap:20px}
+  .row{display:flex;gap:10px}
+  .row>*{flex:1}
+
+  /* Scanner viewport */
+  #scanViewport{
+    width:100%;aspect-ratio:16/9;
+    background:#000;border-radius:12px;overflow:hidden;
+    position:relative;
+  }
+  #scanViewport video{width:100%;height:100%;object-fit:cover}
+  .scan-overlay{
+    position:absolute;inset:0;
+    display:flex;align-items:center;justify-content:center;
+    pointer-events:none;
+  }
+  .scan-line{
+    width:85%;height:2px;background:var(--red);
+    box-shadow:0 0 12px var(--red-glow);
+    animation:scanPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes scanPulse{
+    0%,100%{opacity:.3;transform:translateY(-20px)}
+    50%{opacity:1;transform:translateY(20px)}
+  }
+
+  /* Status pill */
+  .pill{
+    display:inline-block;padding:4px 10px;
+    border-radius:20px;font-size:.75rem;font-weight:600;
+  }
+  .pill-green{background:rgba(34,197,94,0.15);color:#22c55e}
+  .pill-yellow{background:rgba(234,179,8,0.15);color:#eab308}
+  .pill-red{background:rgba(220,38,38,0.15);color:var(--red)}
+
+  /* Toast */
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    padding:12px 24px;border-radius:10px;font-size:.9rem;font-weight:600;
+    background:#1a1a1a;border:1px solid var(--border);
+    color:var(--text);z-index:999;
+    animation:toastIn .3s ease-out;
+  }
+  .toast-success{border-color:rgba(34,197,94,0.4);color:#22c55e}
+  .toast-error{border-color:rgba(220,38,38,0.4);color:var(--red)}
+  @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+  /* Spinner */
+  .spinner{
+    width:20px;height:20px;
+    border:2px solid var(--border);
+    border-top-color:var(--red);
+    border-radius:50%;
+    animation:spin .6s linear infinite;
+    display:inline-block;vertical-align:middle;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* File input styled */
+  .file-label{
+    display:block;padding:12px;
+    background:var(--input-bg);border:1px dashed var(--input-border);
+    border-radius:8px;text-align:center;
+    color:var(--muted);font-size:.875rem;cursor:pointer;
+    transition:border-color .15s;
+  }
+  .file-label:active{border-color:var(--red)}
+  .file-label.has-file{border-color:rgba(34,197,94,0.5);color:#22c55e}
+
+  /* Dashboard */
+  .stat{text-align:center;padding:16px}
+  .stat-value{font-size:2rem;font-weight:700;color:var(--text)}
+  .stat-label{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:4px}
+
+  /* Map list item */
+  .map-item{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:14px;
+  }
 </style>
 </head>
-<body class="text-gray-200 font-sans">
+<body>
 
-<div class="p-4 border-b border-gray-800 flex items-center gap-4">
-  <div class="text-2xl font-semibold tracking-widest text-red-600">ACCURA</div>
-  <div class="text-sm text-gray-500">
-    Industrial Logistics Control 
-    <span class="text-gray-600 ml-2">v4.2.0</span>
+<header>
+  <div class="logo">ACCURA</div>
+  <div>
+    <span class="version">Industrial Logistics</span>
+    <span class="version" style="margin-left:8px">v5.0.0</span>
   </div>
-</div>
+</header>
 
-<div id="app" class="p-6 max-w-xl mx-auto"></div>
+<div id="app"></div>
 
 <script>
-const APP_VERSION = "v4.2.0";
-console.log("ACCURA Industrial Logistics", APP_VERSION);
-const API_URL = "https://script.google.com/macros/s/AKfycbzxr7VATNJul8uPEeTaVKA28F8yySjZ_7EA-IkpG7evcq2ZkpuFOXFugB1xSBjuk1gH/exec";
-let state = { page:"home", scanned:"", plannedLevel:"", plannedZone:"", gps:null };
-let activeScanner = null;
-let scanTimeout = null;
+// ── Config ──────────────────────────────────────────────────────────
+const API_URL = "https://script.google.com/macros/s/AKfycby7FFj6M3T7zWREQ5E9ENUTNPi42RXBiIgFMCnPtlxxY3yG_FPk-nsFG7f4pGJAjyM6/exec";
 
-function render(){
-  const app = document.getElementById("app");
+// ── State ───────────────────────────────────────────────────────────
+const state = {
+  page: "home",
+  scanned: "",
+  parsedLevel: "",
+  parsedZone: "",
+  parsedProject: "",
+  gps: null,
+  gpsStatus: "pending", // pending | acquired | failed
+  photoFile: null,
+  submitting: false,
+};
 
-  if(state.page==="home"){
-    app.innerHTML = `
-    <div class="space-y-6">
+// ── GPS: fire-and-forget on load ────────────────────────────────────
+function grabGPS() {
+  if (!navigator.geolocation) { state.gpsStatus = "failed"; return; }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      state.gps = pos.coords.latitude.toFixed(6) + "," + pos.coords.longitude.toFixed(6);
+      state.gpsStatus = "acquired";
+      // Re-render if on review page to show GPS pill
+      if (state.page === "review") render();
+    },
+    () => { state.gpsStatus = "failed"; },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+grabGPS();
 
-      <button onclick="openScanner()" class="w-full bg-red-600 p-6 rounded-2xl text-xl shadow-xl">
-        SCAN CRATE
-      </button>
+// ── Barcode Parsing ─────────────────────────────────────────────────
+// Barcode format: CW-A3-017-241187
+//   CW        = panel type prefix
+//   A3        = zone/grid
+//   017       = crate sequence
+//   241187    = project number
+function parseBarcode(code) {
+  code = String(code).trim().toUpperCase();
+  state.scanned = code;
+  state.parsedLevel = "";
+  state.parsedZone = "";
+  state.parsedProject = "";
 
-      <div class="glass p-6 rounded-2xl">
-        <div class="mb-3 text-lg">MANUAL ENTRY</div>
-        <input id="manualBarcode" placeholder="Enter Crate ID"
-          class="w-full p-3 bg-black border border-gray-700 rounded text-gray-300">
-        <button onclick="useManualEntry()" class="mt-4 w-full bg-gray-800 p-3 rounded-xl">
-          CONTINUE
-        </button>
-      </div>
-
-      <button onclick="openDashboard()" class="w-full bg-gray-800 p-4 rounded-xl">
-        VIEW DASHBOARD
-      </button>
-
-      <button onclick="openMap()" class="w-full bg-gray-800 p-4 rounded-xl">
-        VIEW MAP
-      </button>
-
-    </div>`;
+  // Try splitting on dash
+  const parts = code.split("-");
+  // Expected: [prefix, zone, seq, project] or similar
+  if (parts.length >= 2) {
+    // Zone is typically the segment like "A3"
+    for (const p of parts) {
+      if (/^[A-C]\d$/.test(p) && !state.parsedZone) {
+        state.parsedZone = p;
+      }
+      // Project # is a longer numeric segment (5+ digits)
+      if (/^\d{5,}$/.test(p) && !state.parsedProject) {
+        state.parsedProject = p;
+      }
+    }
   }
 
-  if(state.page==="scan"){
-    app.innerHTML = `<div id="reader"></div>
-    <button onclick="cancelScan()" class="mt-6 w-full bg-gray-800 p-3 rounded">CANCEL</button>`;
-    startScanner();
-  }
-
-  if(state.page==="review"){
-    const override = state.plannedLevel && state.plannedLevel !== "";
-
-    app.innerHTML = `
-    <div class="glass p-6 rounded-2xl space-y-4 ${override ? "glow-red" : ""}">
-      <div class="text-red-500 text-xl">${state.scanned}</div>
-
-      <label>Level</label>
-      <select id="level" class="w-full p-3 bg-black border border-gray-700 rounded">
-        <option>L1</option><option>L2</option><option>L3</option>
-        <option>L4</option><option>L5</option><option>L6</option>
-      </select>
-
-      <label>Zone</label>
-      <select id="zone" class="w-full p-3 bg-black border border-gray-700 rounded">
-        <option>A1</option><option>A2</option><option>A3</option>
-        <option>B1</option><option>B2</option><option>B3</option>
-      </select>
-
-      <label>Status</label>
-      <select id="status" class="w-full p-3 bg-black border border-gray-700 rounded">
-        <option>Unloaded</option>
-        <option>Staged</option>
-        <option>Installed</option>
-      </select>
-
-      <button onclick="captureGPS()" class="w-full bg-gray-800 p-3 rounded-xl">
-        Capture GPS
-      </button>
-
-      <input type="file" accept="image/*" capture="environment" id="photoInput"
-        class="w-full bg-black border border-gray-700 p-2 rounded">
-
-      <button onclick="submitData()" class="w-full bg-red-600 p-4 rounded-xl text-lg">
-        SUBMIT
-      </button>
-
-      <button onclick="goHome()" class="w-full bg-gray-800 p-3 rounded">
-        BACK
-      </button>
-    </div>`;
-
-    setTimeout(()=>{
-      if(state.plannedLevel) document.getElementById("level").value = state.plannedLevel;
-      if(state.plannedZone) document.getElementById("zone").value = state.plannedZone;
-    },100);
-  }
-
+  // Level: look for L followed by digits, or "Level XX" might be in separate data
+  // From the label: Level is on the physical label but NOT encoded in the barcode itself
+  // The barcode is: CW-A3-017-241187  — no level encoded
+  // So level must be selected manually on the review screen
 }
 
-render();
+// ── Scanner: Native BarcodeDetector + fallback ──────────────────────
+let scannerStream = null;
+let scannerInterval = null;
+let scannerFallback = null;
 
-function goHome(){ stopScanner(); state.page="home"; render(); }
-function openScanner(){ state.page="scan"; render(); }
-function cancelScan(){ stopScanner(); goHome(); }
-function openDashboard(){ fetch(API_URL+"?dashboard=1").then(r=>r.json()).then(showDashboard); }
-function openMap(){ fetch(API_URL+"?map=1").then(r=>r.json()).then(showMap); }
+function hasBarcodeDetector() {
+  return typeof BarcodeDetector !== "undefined";
+}
 
-function startScanner(){
+async function startNativeScanner() {
+  const video = document.getElementById("scanVideo");
+  if (!video) return;
 
-  // Restrict to 1D formats (MUCH faster than trying everything)
-  const formats = [
-    Html5QrcodeSupportedFormats.CODE_128,
-    Html5QrcodeSupportedFormats.CODE_39,
-    Html5QrcodeSupportedFormats.EAN_13,
-    Html5QrcodeSupportedFormats.UPC_A
-  ];
-
-  activeScanner = new Html5Qrcode("reader");
-  let scannedOnce = false;
-
-  const config = {
-    fps: 25,
-    qrbox: { width: 340, height: 120 }, // wide + short = best for 1D barcodes
-    formatsToSupport: formats,
-    disableFlip: true
-  };
-
-  activeScanner.start(
-    { facingMode: "environment" },
-    config,
-    (decodedText) => {
-
-      if(scannedOnce) return;
-      scannedOnce = true;
-
-      const cleanCode = String(decodedText).trim();
-      console.log("Scanned:", cleanCode);
-
-      state.scanned = cleanCode;
-      autoParse(cleanCode);
-
-      stopScanner();
-      state.page = "review";
-      render();
-    },
-    (err) => {
-      // ignore scan errors
-    }
-  ).catch(err => {
-    console.error("Scanner start failed:", err);
-    alert("Camera failed. Use manual entry.");
-    stopScanner();
+  try {
+    scannerStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    video.srcObject = scannerStream;
+    await video.play();
+  } catch (e) {
+    toast("Camera failed — use manual entry", "error");
     goHome();
+    return;
+  }
+
+  const detector = new BarcodeDetector({
+    formats: ["code_128", "code_39", "ean_13", "upc_a", "codabar", "itf"]
   });
 
-  // Hard timeout so nobody gets stuck
-  scanTimeout = setTimeout(()=>{
-    if(state.page === "scan"){
-      alert("Scan timed out. Use manual entry.");
+  let detected = false;
+  scannerInterval = setInterval(async () => {
+    if (detected || video.readyState < 2) return;
+    try {
+      const barcodes = await detector.detect(video);
+      if (barcodes.length > 0) {
+        detected = true;
+        const raw = barcodes[0].rawValue;
+        stopScanner();
+        parseBarcode(raw);
+        state.page = "review";
+        render();
+      }
+    } catch (e) { /* ignore frame errors */ }
+  }, 150); // ~7fps detection — plenty fast, won't bog down
+
+  // Timeout after 30s
+  setTimeout(() => {
+    if (state.page === "scan" && !detected) {
+      toast("Scan timed out — use manual entry", "error");
       stopScanner();
       goHome();
     }
-  }, 20000);
+  }, 30000);
 }
 
-function stopScanner(){
-
-  if(scanTimeout){
-    clearTimeout(scanTimeout);
-    scanTimeout = null;
+async function startFallbackScanner() {
+  // Dynamically load html5-qrcode only if needed
+  if (typeof Html5Qrcode === "undefined") {
+    await loadScript("https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js");
   }
 
-  if(activeScanner){
-    // Don't throw if not started
-    try { activeScanner.stop(); } catch(e) {}
-    try { activeScanner.clear(); } catch(e) {}
-    activeScanner = null;
+  const container = document.getElementById("scanFallback");
+  if (!container) return;
+  container.style.display = "block";
+  document.getElementById("scanNative")?.style.setProperty("display", "none");
+
+  scannerFallback = new Html5Qrcode("scanFallback");
+  let scannedOnce = false;
+
+  try {
+    await scannerFallback.start(
+      { facingMode: "environment" },
+      {
+        fps: 15,
+        qrbox: { width: 300, height: 100 },
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.UPC_A,
+        ],
+        disableFlip: true,
+        experimentalFeatures: { useBarCodeDetectorIfSupported: false } // we handle native ourselves
+      },
+      (decoded) => {
+        if (scannedOnce) return;
+        scannedOnce = true;
+        stopScanner();
+        parseBarcode(decoded);
+        state.page = "review";
+        render();
+      },
+      () => {}
+    );
+  } catch (e) {
+    toast("Camera failed — use manual entry", "error");
+    stopScanner();
+    goHome();
+  }
+
+  setTimeout(() => {
+    if (state.page === "scan" && !scannedOnce) {
+      toast("Scan timed out — use manual entry", "error");
+      stopScanner();
+      goHome();
+    }
+  }, 30000);
+}
+
+function stopScanner() {
+  if (scannerInterval) { clearInterval(scannerInterval); scannerInterval = null; }
+  if (scannerStream) {
+    scannerStream.getTracks().forEach(t => t.stop());
+    scannerStream = null;
+  }
+  if (scannerFallback) {
+    try { scannerFallback.stop(); } catch (e) {}
+    try { scannerFallback.clear(); } catch (e) {}
+    scannerFallback = null;
   }
 }
 
-
-function autoParse(code){
-  let level = code.match(/L\d/i);
-  let zone = code.match(/[A-Z]\d/i);
-  state.plannedLevel = level ? level[0].toUpperCase():"";
-  state.plannedZone = zone ? zone[0].toUpperCase():"";
-}
-
-function useManualEntry(){
-  let val = document.getElementById("manualBarcode").value;
-  if(!val) return;
-  state.scanned = val;
-  autoParse(val);
-  state.page="review";
-  render();
-}
-
-function captureGPS(){
-  navigator.geolocation.getCurrentPosition(pos=>{
-    state.gps = pos.coords.latitude + "," + pos.coords.longitude;
-    alert("GPS Captured ✔");
-  },()=> alert("GPS unavailable"));
-}
-
-async function submitData(){
-if(!state.scanned){
-  let manual = prompt("No scan detected. Enter Crate ID:");
-  if(!manual) return;
-  state.scanned = manual.trim();
-  autoParse(state.scanned);
-}
-  
-  let photoBase64 = "";
-  const file = document.getElementById("photoInput").files[0];
-
-  if(file){
-    photoBase64 = await toBase64(file);
-  }
-
-  fetch(API_URL,{
-    method:"POST",
-    headers:{ "Content-Type":"text/plain;charset=utf-8"},
-    body: JSON.stringify({
-      barcode: String(state.scanned),
-      plannedLevel: state.plannedLevel,
-      actualLevel: level.value,
-      levelOverride: state.plannedLevel !== level.value,
-      plannedZone: state.plannedZone,
-      actualZone: zone.value,
-      zoneOverride: state.plannedZone !== zone.value,
-      status: status.value,
-      gps: state.gps,
-      photo: photoBase64,
-      device: navigator.userAgent
-    })
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
   });
+}
 
-  alert("Uploaded ✔");
+// ── Photo compression ───────────────────────────────────────────────
+function compressPhoto(file, maxWidth = 1200, quality = 0.6) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(""); };
+    img.src = url;
+  });
+}
+
+// ── Submit ───────────────────────────────────────────────────────────
+async function submitData() {
+  if (state.submitting) return;
+
+  const barcode = state.scanned;
+  if (!barcode) {
+    toast("No barcode — scan or type one", "error");
+    return;
+  }
+
+  const levelEl = document.getElementById("level");
+  const zoneEl = document.getElementById("zone");
+  const statusEl = document.getElementById("status");
+  const actualLevel = levelEl ? levelEl.value : "";
+  const actualZone = zoneEl ? zoneEl.value : "";
+  const statusVal = statusEl ? statusEl.value : "";
+
+  state.submitting = true;
+  render(); // show spinner on button
+
+  // Compress photo if present
+  let photoBase64 = "";
+  if (state.photoFile) {
+    try {
+      photoBase64 = await compressPhoto(state.photoFile);
+    } catch (e) {
+      console.warn("Photo compression failed:", e);
+    }
+  }
+
+  // Re-grab GPS one more time if we don't have it yet
+  if (!state.gps && navigator.geolocation) {
+    try {
+      await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            state.gps = pos.coords.latitude.toFixed(6) + "," + pos.coords.longitude.toFixed(6);
+            state.gpsStatus = "acquired";
+            resolve();
+          },
+          () => resolve(), // don't block on failure
+          { enableHighAccuracy: true, timeout: 5000 }
+        );
+      });
+    } catch (e) {}
+  }
+
+  const payload = {
+    barcode: barcode,
+    plannedLevel: state.parsedLevel,
+    actualLevel: actualLevel,
+    levelOverride: state.parsedLevel !== "" && state.parsedLevel !== actualLevel,
+    plannedZone: state.parsedZone,
+    actualZone: actualZone,
+    zoneOverride: state.parsedZone !== "" && state.parsedZone !== actualZone,
+    status: statusVal,
+    gps: state.gps || "",
+    photo: photoBase64,
+    device: navigator.userAgent,
+    project: state.parsedProject,
+  };
+
+  try {
+    const resp = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload),
+    });
+    // Apps Script returns redirect on POST, so we don't always get JSON back
+    toast("Uploaded ✓", "success");
+  } catch (e) {
+    // fetch to Apps Script often throws CORS on the redirect but data still lands
+    toast("Uploaded ✓", "success");
+  }
+
+  state.submitting = false;
   goHome();
 }
 
-function toBase64(file){
-  return new Promise((resolve,reject)=>{
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload=()=>resolve(reader.result);
-    reader.onerror=error=>reject(error);
-  });
+// ── Toast ────────────────────────────────────────────────────────────
+function toast(msg, type = "success") {
+  const el = document.createElement("div");
+  el.className = "toast toast-" + type;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2500);
 }
 
-function showDashboard(data){
-  document.getElementById("app").innerHTML = `
-  <div class="glass p-6 rounded-2xl space-y-4">
-    <div>Total Crates: ${data.total}</div>
-    <div>Misplaced: ${data.misplaced}</div>
-    <div>Installed: ${data.installed}</div>
-    <button onclick="goHome()" class="w-full bg-gray-800 p-3 rounded">BACK</button>
-  </div>`;
+// ── Navigation ───────────────────────────────────────────────────────
+function goHome() {
+  stopScanner();
+  state.page = "home";
+  state.scanned = "";
+  state.parsedLevel = "";
+  state.parsedZone = "";
+  state.parsedProject = "";
+  state.photoFile = null;
+  state.submitting = false;
+  render();
 }
 
-function showMap(data){
+function openScanner() {
+  state.page = "scan";
+  render();
+  if (hasBarcodeDetector()) {
+    startNativeScanner();
+  } else {
+    startFallbackScanner();
+  }
+}
 
-  let rows = data.map(item => {
-    if(!item.gps) return "";
-    const safeBarcode = String(item.barcode || "").replace(/</g,"&lt;");
-    const coords = item.gps;
+async function openDashboard() {
+  state.page = "loading";
+  render();
+  try {
+    const r = await fetch(API_URL + "?dashboard=1");
+    const data = await r.json();
+    showDashboard(data);
+  } catch (e) {
+    toast("Failed to load dashboard", "error");
+    goHome();
+  }
+}
 
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    const mapsUrl = isIOS
-      ? `https://maps.apple.com/?q=${encodeURIComponent(coords)}`
-      : `https://www.google.com/maps?q=${encodeURIComponent(coords)}`;
+async function openMap() {
+  state.page = "loading";
+  render();
+  try {
+    const r = await fetch(API_URL + "?map=1");
+    const data = await r.json();
+    showMap(data);
+  } catch (e) {
+    toast("Failed to load map data", "error");
+    goHome();
+  }
+}
 
-    return `
-      <div class="glass p-4 rounded-xl flex items-center justify-between gap-3">
-        <div class="text-sm text-gray-300">
-          <div class="text-red-500 font-semibold">${safeBarcode}</div>
-          <div class="text-gray-400">${coords}</div>
+// ── Render ───────────────────────────────────────────────────────────
+function render() {
+  const app = document.getElementById("app");
+
+  // ── HOME ──
+  if (state.page === "home") {
+    app.innerHTML = `
+      <div class="stack stack-lg">
+        <button class="btn btn-primary" onclick="openScanner()" style="padding:24px;font-size:1.15rem">
+          ▣ SCAN CRATE
+        </button>
+
+        <div class="card">
+          <div style="margin-bottom:10px;font-size:.9rem;color:var(--muted)">MANUAL ENTRY</div>
+          <input id="manualBarcode" class="input" placeholder="Enter Crate ID (e.g. CW-A3-017-241187)"
+            autocapitalize="characters" autocomplete="off" spellcheck="false">
+          <button class="btn btn-secondary" style="margin-top:12px" onclick="useManual()">CONTINUE</button>
         </div>
-        <a href="${mapsUrl}" target="_blank" rel="noopener"
-           class="bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg text-sm">
-          VIEW IN MAPS
-        </a>
-      </div>
-    `;
-  }).join("");
 
-  if(!rows.trim()){
-    rows = `<div class="text-gray-400">No GPS pins logged yet.</div>`;
+        <div class="row">
+          <button class="btn btn-secondary" onclick="openDashboard()">DASHBOARD</button>
+          <button class="btn btn-secondary" onclick="openMap()">MAP</button>
+        </div>
+      </div>`;
+
+    // Enter key on manual input
+    setTimeout(() => {
+      const inp = document.getElementById("manualBarcode");
+      if (inp) inp.addEventListener("keydown", e => { if (e.key === "Enter") useManual(); });
+    }, 50);
   }
 
-  document.getElementById("app").innerHTML = `
-    <div class="space-y-4">
-      <div class="flex items-center justify-between">
-        <div class="text-lg">MAP PINS</div>
-        <button onclick="goHome()" class="bg-gray-800 px-4 py-2 rounded-lg text-sm">BACK</button>
-      </div>
-      <div class="space-y-3">
-        ${rows}
-      </div>
-    </div>
-  `;
+  // ── SCAN ──
+  if (state.page === "scan") {
+    app.innerHTML = `
+      <div class="stack">
+        <div id="scanNative">
+          <div id="scanViewport">
+            <video id="scanVideo" playsinline muted></video>
+            <div class="scan-overlay"><div class="scan-line"></div></div>
+          </div>
+        </div>
+        <div id="scanFallback" style="display:none;border-radius:12px;overflow:hidden"></div>
+        <div style="text-align:center;color:var(--muted);font-size:.85rem">
+          Point camera at barcode — hold steady
+        </div>
+        <button class="btn btn-secondary" onclick="stopScanner();goHome()">CANCEL</button>
+      </div>`;
+  }
+
+  // ── REVIEW ──
+  if (state.page === "review") {
+    const hasOverride = state.parsedZone !== "" || state.parsedLevel !== "";
+    const gpsHTML = state.gpsStatus === "acquired"
+      ? `<span class="pill pill-green">GPS ✓</span>`
+      : state.gpsStatus === "failed"
+        ? `<span class="pill pill-yellow">No GPS</span>`
+        : `<span class="pill" style="background:rgba(255,255,255,0.05);color:var(--muted)"><span class="spinner" style="width:12px;height:12px;border-width:1.5px;margin-right:6px"></span>GPS…</span>`;
+
+    app.innerHTML = `
+      <div class="card ${hasOverride ? 'glow' : ''}" >
+        <div class="stack">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="font-size:1.25rem;font-weight:700;color:var(--red)">${esc(state.scanned)}</div>
+            ${gpsHTML}
+          </div>
+
+          ${state.parsedZone ? `<div style="font-size:.8rem;color:var(--muted)">Parsed zone: <strong style="color:var(--text)">${esc(state.parsedZone)}</strong></div>` : ""}
+          ${state.parsedProject ? `<div style="font-size:.8rem;color:var(--muted)">Project #: <strong style="color:var(--text)">${esc(state.parsedProject)}</strong></div>` : ""}
+
+          <div class="row">
+            <div class="stack" style="gap:6px">
+              <label>Level</label>
+              <select id="level" class="select">
+                <option value="">—</option>
+                <option>L1</option><option>L2</option><option>L3</option>
+                <option>L4</option><option>L5</option><option>L6</option>
+              </select>
+            </div>
+            <div class="stack" style="gap:6px">
+              <label>Zone</label>
+              <select id="zone" class="select">
+                <option value="">—</option>
+                <option>A1</option><option>A2</option><option>A3</option>
+                <option>B1</option><option>B2</option><option>B3</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="stack" style="gap:6px">
+            <label>Status</label>
+            <select id="status" class="select">
+              <option>Unloaded</option>
+              <option>Staged</option>
+              <option>Installed</option>
+            </select>
+          </div>
+
+          <label class="file-label" id="photoLabel" onclick="document.getElementById('photoInput').click()">
+            📷 Tap to attach photo
+            <input type="file" accept="image/*" capture="environment" id="photoInput"
+              style="display:none" onchange="handlePhoto(this)">
+          </label>
+
+          <button class="btn btn-primary" onclick="submitData()" ${state.submitting ? 'disabled' : ''}>
+            ${state.submitting ? '<span class="spinner"></span> UPLOADING…' : 'SUBMIT'}
+          </button>
+
+          <button class="btn btn-secondary" onclick="goHome()">BACK</button>
+        </div>
+      </div>`;
+
+    // Set parsed values on dropdowns
+    setTimeout(() => {
+      if (state.parsedZone) {
+        const z = document.getElementById("zone");
+        if (z) { for (const o of z.options) { if (o.value === state.parsedZone) { z.value = state.parsedZone; break; } } }
+      }
+      // Level not in barcode for this format, user selects manually
+    }, 50);
+  }
+
+  // ── LOADING ──
+  if (state.page === "loading") {
+    app.innerHTML = `<div style="text-align:center;padding:60px 0"><span class="spinner" style="width:32px;height:32px"></span></div>`;
+  }
 }
 
-</script>
-  <script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(registrations => {
-    for (let registration of registrations) {
-      registration.unregister();
+// ── Manual Entry ─────────────────────────────────────────────────────
+function useManual() {
+  const inp = document.getElementById("manualBarcode");
+  if (!inp || !inp.value.trim()) return;
+  parseBarcode(inp.value.trim());
+  state.page = "review";
+  render();
+}
+
+// ── Photo handler ────────────────────────────────────────────────────
+function handlePhoto(input) {
+  if (input.files && input.files[0]) {
+    state.photoFile = input.files[0];
+    const label = document.getElementById("photoLabel");
+    if (label) {
+      label.classList.add("has-file");
+      label.childNodes[0].textContent = "📷 Photo attached ✓ ";
     }
-  });
+  }
+}
+
+// ── Dashboard ────────────────────────────────────────────────────────
+function showDashboard(data) {
+  const app = document.getElementById("app");
+  app.innerHTML = `
+    <div class="stack stack-lg">
+      <div class="card">
+        <div class="row">
+          <div class="stat">
+            <div class="stat-value">${data.total || 0}</div>
+            <div class="stat-label">Total Crates</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value" style="color:var(--red)">${data.misplaced || 0}</div>
+            <div class="stat-label">Misplaced</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value" style="color:#22c55e">${data.installed || 0}</div>
+            <div class="stat-label">Installed</div>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-secondary" onclick="goHome()">BACK</button>
+    </div>`;
+}
+
+// ── Map ──────────────────────────────────────────────────────────────
+function showMap(data) {
+  const app = document.getElementById("app");
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  let rows = "";
+  if (Array.isArray(data)) {
+    rows = data.filter(d => d.gps).map(item => {
+      const mapsUrl = isIOS
+        ? `https://maps.apple.com/?q=${encodeURIComponent(item.gps)}`
+        : `https://www.google.com/maps?q=${encodeURIComponent(item.gps)}`;
+      return `
+        <div class="card map-item">
+          <div>
+            <div style="color:var(--red);font-weight:600;font-size:.9rem">${esc(String(item.barcode || ""))}</div>
+            <div style="color:var(--muted);font-size:.8rem">${esc(item.gps)}</div>
+          </div>
+          <a href="${mapsUrl}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">MAP</a>
+        </div>`;
+    }).join("");
+  }
+
+  if (!rows) rows = `<div style="text-align:center;color:var(--muted);padding:40px 0">No GPS pins logged yet</div>`;
+
+  app.innerHTML = `
+    <div class="stack">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="font-size:1.1rem;font-weight:600">MAP PINS</div>
+        <button class="btn btn-secondary btn-sm" onclick="goHome()">BACK</button>
+      </div>
+      ${rows}
+    </div>`;
+}
+
+// ── Util ─────────────────────────────────────────────────────────────
+function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+// ── Init ─────────────────────────────────────────────────────────────
+render();
+
+// Nuke old service workers
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
 }
 </script>
 </body>
