@@ -72,7 +72,8 @@ function render(){
   }
 
   if(state.page==="review"){
-    const override = state.plannedLevel && state.plannedLevel !== state.selectedLevel;
+    const override = state.plannedLevel && state.plannedLevel !== "";
+
     app.innerHTML = `
     <div class="glass p-6 rounded-2xl space-y-4 ${override ? "glow-red" : ""}">
       <div class="text-red-500 text-xl">${state.scanned}</div>
@@ -132,33 +133,50 @@ function startScanner(){
   const scanner = new Html5Qrcode("reader");
   let scannedOnce = false;
 
+  // FAST MODE: only decode what we care about
+  const config = {
+    fps: 15,
+    qrbox: { width: 260, height: 160 }, // wider = better for Code128
+    aspectRatio: 1.777,
+    disableFlip: true
+  };
+
   scanner.start(
-    { facingMode: "environment" },
-    { fps: 10, qrbox: 250 },
-    (code) => {
+    { facingMode: { exact: "environment" } },
+    config,
+
+    (decodedText) => {
 
       if(scannedOnce) return;
       scannedOnce = true;
 
-      console.log("Scanned:", code);
+      const cleanCode = String(decodedText).trim();
+      console.log("Scanned:", cleanCode);
 
-      state.scanned = code.trim();
-      autoParse(state.scanned);
+      state.scanned = cleanCode;
+      autoParse(cleanCode);
 
-      scanner.stop().then(() => {
-        state.page = "review";
-        render();
-      }).catch(err => {
-        console.error("Stop error:", err);
-        state.page = "review";
-        render();
-      });
+      scanner.stop()
+        .then(() => {
+          state.page = "review";
+          render();
+        })
+        .catch(() => {
+          state.page = "review";
+          render();
+        });
     },
-    (errorMessage) => {
-      // silent scan errors
+
+    (err) => {
+      // ignore
     }
-  );
+  ).catch(err => {
+    console.error("Scanner start failed:", err);
+    alert("Camera failed. Use manual entry.");
+    goHome();
+  });
 }
+
 
 
 function autoParse(code){
@@ -203,7 +221,7 @@ if(!state.scanned){
     method:"POST",
     headers:{ "Content-Type":"text/plain;charset=utf-8"},
     body: JSON.stringify({
-      barcode: state.scanned,
+      barcode: String(state.scanned),
       plannedLevel: state.plannedLevel,
       actualLevel: level.value,
       levelOverride: state.plannedLevel !== level.value,
