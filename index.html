@@ -164,7 +164,7 @@
   <div class="logo">ACCURA</div>
   <div>
     <span class="version">Industrial Logistics</span>
-    <span class="version" style="margin-left:8px">v5.0.0</span>
+    <span class="version" style="margin-left:8px">v5.1.1</span>
   </div>
 </header>
 
@@ -172,7 +172,7 @@
 
 <script>
 // ── Config ──────────────────────────────────────────────────────────
-const API_URL = "https://script.google.com/macros/s/AKfycby7FFj6M3T7zWREQ5E9ENUTNPi42RXBiIgFMCnPtlxxY3yG_FPk-nsFG7f4pGJAjyM6/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbzxr7VATNJul8uPEeTaVKA28F8yySjZ_7EA-IkpG7evcq2ZkpuFOXFugB1xSBjuk1gH/exec";
 
 // ── State ───────────────────────────────────────────────────────────
 const state = {
@@ -201,7 +201,7 @@ function grabGPS() {
     { enableHighAccuracy: true, timeout: 10000 }
   );
 }
-grabGPS();
+// GPS grabbed on user gesture (scan/manual) to avoid browser violation
 
 // ── Barcode Parsing ─────────────────────────────────────────────────
 // Barcode format: CW-A3-017-241187
@@ -492,6 +492,7 @@ function goHome() {
 }
 
 function openScanner() {
+  grabGPS();
   state.page = "scan";
   render();
   if (hasBarcodeDetector()) {
@@ -625,11 +626,11 @@ function render() {
             </select>
           </div>
 
-          <label class="file-label" id="photoLabel" onclick="document.getElementById('photoInput').click()">
+          <div class="file-label" id="photoLabel">
             📷 Tap to attach photo
-            <input type="file" accept="image/*" capture="environment" id="photoInput"
-              style="display:none" onchange="handlePhoto(this)">
-          </label>
+          </div>
+          <input type="file" accept="image/*" capture="environment" id="photoInput"
+            style="position:absolute;left:-9999px" onchange="handlePhoto(this)">
 
           <button class="btn btn-primary" onclick="submitData()" ${state.submitting ? 'disabled' : ''}>
             ${state.submitting ? '<span class="spinner"></span> UPLOADING…' : 'SUBMIT'}
@@ -645,7 +646,12 @@ function render() {
         const z = document.getElementById("zone");
         if (z) { for (const o of z.options) { if (o.value === state.parsedZone) { z.value = state.parsedZone; break; } } }
       }
-      // Level not in barcode for this format, user selects manually
+      // Photo label click
+      const photoLabel = document.getElementById("photoLabel");
+      const photoInput = document.getElementById("photoInput");
+      if (photoLabel && photoInput) {
+        photoLabel.addEventListener("click", () => { photoInput.click(); }, { once: false });
+      }
     }, 50);
   }
 
@@ -659,6 +665,7 @@ function render() {
 function useManual() {
   const inp = document.getElementById("manualBarcode");
   if (!inp || !inp.value.trim()) return;
+  grabGPS();
   parseBarcode(inp.value.trim());
   state.page = "review";
   render();
