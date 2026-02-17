@@ -244,7 +244,7 @@ function showMap(data){
 
   let rows = data.map(item => {
     if(!item.gps) return "";
-    const safeBarcode = (item.barcode || "").replace(/</g,"&lt;");
+    const safeBarcode = String(item.barcode || "").replace(/</g,"&lt;");
     const coords = item.gps;
 
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
