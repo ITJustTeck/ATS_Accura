@@ -185,7 +185,13 @@ function captureGPS(){
 }
 
 async function submitData(){
-
+if(!state.scanned){
+  let manual = prompt("No scan detected. Enter Crate ID:");
+  if(!manual) return;
+  state.scanned = manual.trim();
+  autoParse(state.scanned);
+}
+  
   let photoBase64 = "";
   const file = document.getElementById("photoInput").files[0];
 
