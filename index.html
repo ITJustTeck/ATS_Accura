@@ -164,7 +164,7 @@
   <div class="logo">ACCURA</div>
   <div>
     <span class="version">Industrial Logistics</span>
-    <span class="version" style="margin-left:8px">v7.0.0</span>
+    <span class="version" style="margin-left:8px">v8.0.0</span>
   </div>
 </header>
 
@@ -172,7 +172,7 @@
 
 <script>
 // ── Config ──────────────────────────────────────────────────────────
-const API_URL = "https://script.google.com/macros/s/AKfycbz7W0paIcindgFJbk7y8sl8-YguGQ6sJURObilrJ-qhw8OolrTBIWpljKzG62nXGB-Z/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbx6bweUFGC0KYYPeV_apf1EKxhxSGr9vg5Z3qXKVWqQ20p2pLiSM52bRkGStXCwQLqs/exec";
 
 // ── State ───────────────────────────────────────────────────────────
 const state = {
@@ -468,21 +468,15 @@ async function submitData() {
       const photoBase64 = await compressPhoto(state.photoFile);
       dbg("Compressed to " + Math.round(photoBase64.length/1024) + "KB base64");
 
-      const photoPayload = {
+      const photoPayload = JSON.stringify({
         photoUpload: true,
         barcode: barcode,
         photo: photoBase64,
-      };
-
-      dbg("Sending photo POST...");
-      await fetch(API_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify(photoPayload),
-        redirect: "follow",
       });
-      dbg("Photo POST completed (no-cors, no response readable)");
+
+      dbg("Sending photo via form POST (" + Math.round(photoPayload.length/1024) + "KB payload)...");
+      await postViaForm(API_URL, photoPayload);
+      dbg("Photo form POST completed");
       toast("Photo uploaded ✓", "success");
     } catch (e) {
       dbg("Photo POST error: " + e.message);
@@ -495,6 +489,41 @@ async function submitData() {
 
   state.submitting = false;
   goHome();
+}
+
+// ── Post via hidden form + iframe (bypasses CORS redirect issues) ────
+function postViaForm(url, jsonString) {
+  return new Promise((resolve, reject) => {
+    const id = "postframe_" + Date.now();
+
+    // Hidden iframe to catch the response
+    const iframe = document.createElement("iframe");
+    iframe.name = id;
+    iframe.style.display = "none";
+    document.body.appendChild(iframe);
+
+    // Form that posts into the iframe
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = url;
+    form.target = id;
+    form.style.display = "none";
+
+    const input = document.createElement("textarea");
+    input.name = "payload";
+    input.value = jsonString;
+    form.appendChild(input);
+
+    document.body.appendChild(form);
+    form.submit();
+
+    // Resolve after a delay (we can't read cross-origin iframe)
+    setTimeout(() => {
+      try { iframe.remove(); } catch(e){}
+      try { form.remove(); } catch(e){}
+      resolve();
+    }, 5000);
+  });
 }
 
 // ── Remote debug log → Sheet2 ────────────────────────────────────────
