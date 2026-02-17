@@ -164,7 +164,7 @@
   <div class="logo">ACCURA</div>
   <div>
     <span class="version">Industrial Logistics</span>
-    <span class="version" style="margin-left:8px">v5.6.0</span>
+    <span class="version" style="margin-left:8px">v6.0.0</span>
   </div>
 </header>
 
@@ -172,7 +172,7 @@
 
 <script>
 // ── Config ──────────────────────────────────────────────────────────
-const API_URL = "https://script.google.com/macros/s/AKfycbzxr7VATNJul8uPEeTaVKA28F8yySjZ_7EA-IkpG7evcq2ZkpuFOXFugB1xSBjuk1gH/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwZcFGIVJ-_6syz0wwP-d6ha8szjcgwH_ebYEGokIfn30mjEQIEsJNHCPmX-3OYBDYU/exec";
 
 // ── State ───────────────────────────────────────────────────────────
 const state = {
@@ -410,33 +410,24 @@ async function submitData() {
   state.submitting = true;
   render(); // show spinner on button
 
-  // Compress photo if present
-  let photoBase64 = "";
-  if (state.photoFile) {
-    try {
-      photoBase64 = await compressPhoto(state.photoFile);
-    } catch (e) {
-      console.warn("Photo compression failed:", e);
-    }
-  }
-
   // Re-grab GPS one more time if we don't have it yet
   if (!state.gps && navigator.geolocation) {
     try {
-      await new Promise((resolve, reject) => {
+      await new Promise((resolve) => {
         navigator.geolocation.getCurrentPosition(
           pos => {
             state.gps = pos.coords.latitude.toFixed(6) + "," + pos.coords.longitude.toFixed(6);
             state.gpsStatus = "acquired";
             resolve();
           },
-          () => resolve(), // don't block on failure
+          () => resolve(),
           { enableHighAccuracy: true, timeout: 5000 }
         );
       });
     } catch (e) {}
   }
 
+  // ── PHASE 1: Send scan data (no photo) ──
   const payload = {
     barcode: barcode,
     plannedLevel: state.parsedLevel,
@@ -447,7 +438,7 @@ async function submitData() {
     zoneOverride: state.parsedZone !== "" && state.parsedZone !== actualZone,
     status: statusVal,
     gps: state.gps || "",
-    photo: photoBase64,
+    photo: "",
     device: navigator.userAgent,
     project: state.parsedProject,
   };
@@ -460,10 +451,43 @@ async function submitData() {
       body: JSON.stringify(payload),
       redirect: "follow",
     });
-    toast("Uploaded ✓", "success");
+    console.log("Phase 1: scan data sent");
   } catch (e) {
-    console.error("Submit error:", e);
-    toast("Upload may have failed — check sheet", "error");
+    console.error("Phase 1 failed:", e);
+    toast("Upload failed", "error");
+    state.submitting = false;
+    render();
+    return;
+  }
+
+  // ── PHASE 2: Upload photo separately (if present) ──
+  if (state.photoFile) {
+    toast("Scan saved — uploading photo…", "success");
+    try {
+      const photoBase64 = await compressPhoto(state.photoFile);
+      console.log("Photo size:", Math.round(photoBase64.length / 1024), "KB");
+
+      const photoPayload = {
+        photoUpload: true,
+        barcode: barcode,
+        photo: photoBase64,
+      };
+
+      await fetch(API_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(photoPayload),
+        redirect: "follow",
+      });
+      console.log("Phase 2: photo sent");
+      toast("Photo uploaded ✓", "success");
+    } catch (e) {
+      console.error("Phase 2 photo failed:", e);
+      toast("Scan saved, photo failed", "error");
+    }
+  } else {
+    toast("Uploaded ✓", "success");
   }
 
   state.submitting = false;
