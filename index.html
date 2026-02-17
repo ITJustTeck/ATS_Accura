@@ -164,7 +164,7 @@
   <div class="logo">ACCURA</div>
   <div>
     <span class="version">Industrial Logistics</span>
-    <span class="version" style="margin-left:8px">v5.1.1</span>
+    <span class="version" style="margin-left:8px">v5.0.0</span>
   </div>
 </header>
 
@@ -453,16 +453,17 @@ async function submitData() {
   };
 
   try {
-    const resp = await fetch(API_URL, {
+    await fetch(API_URL, {
       method: "POST",
+      mode: "no-cors",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify(payload),
+      redirect: "follow",
     });
-    // Apps Script returns redirect on POST, so we don't always get JSON back
     toast("Uploaded ✓", "success");
   } catch (e) {
-    // fetch to Apps Script often throws CORS on the redirect but data still lands
-    toast("Uploaded ✓", "success");
+    console.error("Submit error:", e);
+    toast("Upload may have failed — check sheet", "error");
   }
 
   state.submitting = false;
