@@ -164,7 +164,7 @@
   <div class="logo">ACCURA</div>
   <div>
     <span class="version">Industrial Logistics</span>
-    <span class="version" style="margin-left:8px">v10.0.0</span>
+    <span class="version" style="margin-left:8px">v11.0.0</span>
   </div>
 </header>
 
@@ -172,8 +172,7 @@
 
 <script>
 // ── Config ──────────────────────────────────────────────────────────
-// ⚠️ REPLACE THIS with your Cloudflare Worker URL after deploying
-const API_URL = "https://accura-proxy.it-81b.workers.dev";
+const API_URL = "https://script.google.com/macros/s/AKfycbywcHScN1t2yqipXSDL7exH0Jl38qGxk_4y1ls4GBnBEkhtjn1Wxjn3DwKkZgi6nKE/exec";
 
 // ── State ───────────────────────────────────────────────────────────
 const state = {
@@ -391,6 +390,25 @@ function compressPhoto(file, maxWidth = 1200, quality = 0.5) {
   });
 }
 
+// ── XHR POST — the one thing that actually works with Apps Script ────
+function xhrPost(url, jsonString) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.setRequestHeader("Content-Type", "text/plain;charset=utf-8");
+    xhr.onload = function() {
+      dbg("XHR done: status=" + xhr.status + " len=" + xhr.responseText.length);
+      try { resolve(JSON.parse(xhr.responseText)); }
+      catch(e) { resolve({ raw: xhr.responseText.substring(0, 200) }); }
+    };
+    xhr.onerror = function() {
+      dbg("XHR error: status=" + xhr.status);
+      reject(new Error("XHR failed"));
+    };
+    xhr.send(jsonString);
+  });
+}
+
 // ── Submit ───────────────────────────────────────────────────────────
 async function submitData() {
   if (state.submitting) return;
@@ -409,9 +427,9 @@ async function submitData() {
   const statusVal = statusEl ? statusEl.value : "";
 
   state.submitting = true;
-  render(); // show spinner on button
+  render();
 
-  // Re-grab GPS one more time if we don't have it yet
+  // Re-grab GPS
   if (!state.gps && navigator.geolocation) {
     try {
       await new Promise((resolve) => {
@@ -428,8 +446,20 @@ async function submitData() {
     } catch (e) {}
   }
 
-  // ── PHASE 1: Send scan data (no photo) ──
-  const payload = {
+  // Compress photo if present
+  let photoBase64 = "";
+  if (state.photoFile) {
+    dbg("Compressing photo: " + Math.round(state.photoFile.size/1024) + "KB raw");
+    try {
+      photoBase64 = await compressPhoto(state.photoFile);
+      dbg("Compressed to " + Math.round(photoBase64.length/1024) + "KB");
+    } catch (e) {
+      dbg("Photo compress failed: " + e.message);
+    }
+  }
+
+  // Single POST — everything in one shot
+  const payload = JSON.stringify({
     barcode: barcode,
     plannedLevel: state.parsedLevel,
     actualLevel: actualLevel,
@@ -439,57 +469,20 @@ async function submitData() {
     zoneOverride: state.parsedZone !== "" && state.parsedZone !== actualZone,
     status: statusVal,
     gps: state.gps || "",
-    photo: "",
+    photo: photoBase64,
     device: navigator.userAgent,
     project: state.parsedProject,
-  };
+  });
+
+  dbg("Sending XHR: " + Math.round(payload.length/1024) + "KB total");
 
   try {
-    const resp = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const result = await resp.json();
-    dbg("Phase 1 response: " + JSON.stringify(result));
-  } catch (e) {
-    dbg("Phase 1 failed: " + e.message);
-    toast("Upload failed", "error");
-    state.submitting = false;
-    render();
-    return;
-  }
-
-  // ── PHASE 2: Upload photo separately (if present) ──
-  if (state.photoFile) {
-    dbg("Photo file found: " + state.photoFile.name + " (" + Math.round(state.photoFile.size/1024) + "KB raw)");
-    toast("Scan saved — uploading photo…", "success");
-    try {
-      const photoBase64 = await compressPhoto(state.photoFile);
-      dbg("Compressed to " + Math.round(photoBase64.length/1024) + "KB base64");
-
-      const body = JSON.stringify({
-        photoUpload: true,
-        barcode: barcode,
-        photo: photoBase64,
-      });
-      dbg("Photo payload: " + Math.round(body.length/1024) + "KB. Sending...");
-
-      const photoResp = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: body,
-      });
-      const photoResult = await photoResp.json();
-      dbg("Photo response: " + JSON.stringify(photoResult));
-      toast("Photo uploaded ✓", "success");
-    } catch (e) {
-      dbg("Photo error: " + e.message);
-      toast("Scan saved, photo failed", "error");
-    }
-  } else {
-    dbg("No photo file attached");
+    const result = await xhrPost(API_URL, payload);
+    dbg("Result: " + JSON.stringify(result));
     toast("Uploaded ✓", "success");
+  } catch (e) {
+    dbg("Submit failed: " + e.message);
+    toast("Upload failed", "error");
   }
 
   state.submitting = false;
