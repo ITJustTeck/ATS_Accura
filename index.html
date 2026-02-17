@@ -164,7 +164,7 @@
   <div class="logo">ACCURA</div>
   <div>
     <span class="version">Industrial Logistics</span>
-    <span class="version" style="margin-left:8px">v6.0.0</span>
+    <span class="version" style="margin-left:8px">v7.0.0</span>
   </div>
 </header>
 
@@ -172,7 +172,7 @@
 
 <script>
 // ── Config ──────────────────────────────────────────────────────────
-const API_URL = "https://script.google.com/macros/s/AKfycbwZcFGIVJ-_6syz0wwP-d6ha8szjcgwH_ebYEGokIfn30mjEQIEsJNHCPmX-3OYBDYU/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbz7W0paIcindgFJbk7y8sl8-YguGQ6sJURObilrJ-qhw8OolrTBIWpljKzG62nXGB-Z/exec";
 
 // ── State ───────────────────────────────────────────────────────────
 const state = {
@@ -462,10 +462,11 @@ async function submitData() {
 
   // ── PHASE 2: Upload photo separately (if present) ──
   if (state.photoFile) {
+    dbg("Photo file found: " + state.photoFile.name + " (" + Math.round(state.photoFile.size/1024) + "KB raw)");
     toast("Scan saved — uploading photo…", "success");
     try {
       const photoBase64 = await compressPhoto(state.photoFile);
-      console.log("Photo size:", Math.round(photoBase64.length / 1024), "KB");
+      dbg("Compressed to " + Math.round(photoBase64.length/1024) + "KB base64");
 
       const photoPayload = {
         photoUpload: true,
@@ -473,6 +474,7 @@ async function submitData() {
         photo: photoBase64,
       };
 
+      dbg("Sending photo POST...");
       await fetch(API_URL, {
         method: "POST",
         mode: "no-cors",
@@ -480,18 +482,34 @@ async function submitData() {
         body: JSON.stringify(photoPayload),
         redirect: "follow",
       });
-      console.log("Phase 2: photo sent");
+      dbg("Photo POST completed (no-cors, no response readable)");
       toast("Photo uploaded ✓", "success");
     } catch (e) {
-      console.error("Phase 2 photo failed:", e);
+      dbg("Photo POST error: " + e.message);
       toast("Scan saved, photo failed", "error");
     }
   } else {
+    dbg("No photo file attached");
     toast("Uploaded ✓", "success");
   }
 
   state.submitting = false;
   goHome();
+}
+
+// ── Remote debug log → Sheet2 ────────────────────────────────────────
+function dbg(msg) {
+  console.log("[dbg]", msg);
+  // Fire-and-forget to Sheet2
+  try {
+    fetch(API_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ _log: true, msg: msg }),
+      redirect: "follow",
+    });
+  } catch (e) { /* don't let logging break anything */ }
 }
 
 // ── Toast ────────────────────────────────────────────────────────────
@@ -700,11 +718,14 @@ function useManual() {
 function handlePhoto(input) {
   if (input.files && input.files[0]) {
     state.photoFile = input.files[0];
+    dbg("Photo captured: " + state.photoFile.name + " " + Math.round(state.photoFile.size/1024) + "KB");
     const label = document.getElementById("photoLabel");
     if (label) {
       label.classList.add("has-file");
       label.childNodes[0].textContent = "📷 Photo attached ✓ ";
     }
+  } else {
+    dbg("handlePhoto called but no file");
   }
 }
 
