@@ -164,7 +164,7 @@
   <div class="logo">ACCURA</div>
   <div>
     <span class="version">Industrial Logistics</span>
-    <span class="version" style="margin-left:8px">v8.1.0</span>
+    <span class="version" style="margin-left:8px">v10.0.0</span>
   </div>
 </header>
 
@@ -172,7 +172,8 @@
 
 <script>
 // ── Config ──────────────────────────────────────────────────────────
-const API_URL = "https://script.google.com/macros/s/AKfycbzxr7VATNJul8uPEeTaVKA28F8yySjZ_7EA-IkpG7evcq2ZkpuFOXFugB1xSBjuk1gH/exec";
+// ⚠️ REPLACE THIS with your Cloudflare Worker URL after deploying
+const API_URL = "https://accura-proxy.it-81b.workers.dev";
 
 // ── State ───────────────────────────────────────────────────────────
 const state = {
@@ -371,7 +372,7 @@ function loadScript(src) {
 }
 
 // ── Photo compression ───────────────────────────────────────────────
-function compressPhoto(file, maxWidth = 800, quality = 0.35) {
+function compressPhoto(file, maxWidth = 1200, quality = 0.5) {
   return new Promise((resolve) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -444,16 +445,15 @@ async function submitData() {
   };
 
   try {
-    await fetch(API_URL, {
+    const resp = await fetch(API_URL, {
       method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-      redirect: "follow",
     });
-    console.log("Phase 1: scan data sent");
+    const result = await resp.json();
+    dbg("Phase 1 response: " + JSON.stringify(result));
   } catch (e) {
-    console.error("Phase 1 failed:", e);
+    dbg("Phase 1 failed: " + e.message);
     toast("Upload failed", "error");
     state.submitting = false;
     render();
@@ -468,7 +468,6 @@ async function submitData() {
       const photoBase64 = await compressPhoto(state.photoFile);
       dbg("Compressed to " + Math.round(photoBase64.length/1024) + "KB base64");
 
-      // Use same pattern as scan data (which works) — just JSON via no-cors
       const body = JSON.stringify({
         photoUpload: true,
         barcode: barcode,
@@ -476,20 +475,16 @@ async function submitData() {
       });
       dbg("Photo payload: " + Math.round(body.length/1024) + "KB. Sending...");
 
-      // Small delay to let scan data POST finish first
-      await new Promise(r => setTimeout(r, 2000));
-
-      const resp = await fetch(API_URL, {
+      const photoResp = await fetch(API_URL, {
         method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        headers: { "Content-Type": "application/json" },
         body: body,
-        redirect: "follow",
       });
-      dbg("Photo fetch completed, status type: " + resp.type);
+      const photoResult = await photoResp.json();
+      dbg("Photo response: " + JSON.stringify(photoResult));
       toast("Photo uploaded ✓", "success");
     } catch (e) {
-      dbg("Photo fetch error: " + e.message);
+      dbg("Photo error: " + e.message);
       toast("Scan saved, photo failed", "error");
     }
   } else {
@@ -501,53 +496,12 @@ async function submitData() {
   goHome();
 }
 
-// ── Post via hidden form + iframe (bypasses CORS redirect issues) ────
-function postViaForm(url, jsonString) {
-  return new Promise((resolve, reject) => {
-    const id = "postframe_" + Date.now();
-
-    // Hidden iframe to catch the response
-    const iframe = document.createElement("iframe");
-    iframe.name = id;
-    iframe.style.display = "none";
-    document.body.appendChild(iframe);
-
-    // Form that posts into the iframe
-    const form = document.createElement("form");
-    form.method = "POST";
-    form.action = url;
-    form.target = id;
-    form.style.display = "none";
-
-    const input = document.createElement("textarea");
-    input.name = "payload";
-    input.value = jsonString;
-    form.appendChild(input);
-
-    document.body.appendChild(form);
-    form.submit();
-
-    // Resolve after a delay (we can't read cross-origin iframe)
-    setTimeout(() => {
-      try { iframe.remove(); } catch(e){}
-      try { form.remove(); } catch(e){}
-      resolve();
-    }, 5000);
-  });
-}
-
 // ── Remote debug log → Sheet2 ────────────────────────────────────────
 function dbg(msg) {
   console.log("[dbg]", msg);
-  // Fire-and-forget to Sheet2
   try {
-    fetch(API_URL, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ _log: true, msg: msg }),
-      redirect: "follow",
-    });
+    // Use GET with query param — no body, no CORS issues
+    fetch(API_URL + "?_log=" + encodeURIComponent(msg), { mode: "no-cors" });
   } catch (e) { /* don't let logging break anything */ }
 }
 
